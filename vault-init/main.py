@@ -28,7 +28,11 @@ def sendRequest(method, payload, path):
 
     conn.request(method, path, body, headers)
     res = conn.getresponse()
+    #print("****************************")
+    #print(path)
+    #print(res.read)
     data = res.read()
+    #print(data.decode("utf-8"))
     return data.decode("utf-8")
 
 ################################################################
@@ -44,14 +48,14 @@ print(vault_root_token)
 
 ################################################################
 # Create PKI Policy
-policy_data = ""
-with open('pki_policy.hcl', 'r') as file:
-    policy_data = file.read().replace('\n','\\n')
-    print(policy_data)
-body  = {
-  "policy": policy_data
-}
-sendRequest("PUT", body, "/v1/sys/policies/acl/pki-policy")
+# policy_data = ""
+# with open('pki_policy.hcl', 'r') as file:
+#     policy_data = file.read().replace('\n','\\n')
+#     print(policy_data)
+# body  = {
+#   "policy": policy_data
+# }
+# sendRequest("PUT", body, "/v1/sys/policies/acl/pki-policy")
 
 ################################################################
 # Create PKI
@@ -74,11 +78,11 @@ body = {
 }
 data = sendRequest("POST", body, "/v1/pki/root/generate/internal")
 dataMap = json.loads(data)
-caCertString = dataMap['data']['certificate']
-caCertString = caCertString + "\n"
-CaCertFile = open("./root-ca.crt", "w")
-n = CaCertFile.write(caCertString.replace('\\n', '\n'))
-CaCertFile.close()
+caRootCertString = dataMap['data']['certificate']
+caRootCertString = caRootCertString + "\n"
+CaRootCertFile = open("./root-ca.crt", "w")
+CaRootCertFile.write(caRootCertString.replace('\\n', '\n'))
+CaRootCertFile.close()
 
 body = {
     'issuing_certificates': 'http://localhost:8200/v1/pki/ca',
@@ -133,31 +137,62 @@ body = {
 }
 sendRequest("POST", body, "/v1/pki_int/roles/" + root_domain_name)
 
-#
-# def issueCert(common_name, file_name):
-#     body = {
-#         'common_name': common_name,
-#         'ttl': '172799h'
-#     }
-#     data = sendRequest(body, "/v1/pki_int/issue/engelbrink-dot-dev")
-#     dataMap = json.loads(data)
-#     certificateString = dataMap['data']['certificate']
-#     certificateString = certificateString + "\n"
-#     certFile = open("./self/" + file_name + ".crt", "w")
-#     certFile.write(certificateString.replace('\\n', '\n'))
-#     certFile.close()
-#
-#     keyString = dataMap['data']['private_key']
-#     keyString = keyString + "\n"
-#     keyFile = open("./self/" + file_name + ".key", "w")
-#     keyFile.write(keyString.replace('\\n', '\n'))
-#     keyFile.close()
-#
-#     caString = dataMap['data']['issuing_ca']
-#     caString = caString + "\n"
-#     caFile = open("./self/ca.crt", "w")
-#     caFile.write(caString.replace('\\n', '\n'))
-#     caFile.close()
-#
-# os.system('cat ./self/root-ca.crt ./self/ca.crt > ./self/chain.crt')
-# issueCert('mqtt.engelbrink.dev', 'server')
+################################################################
+# Enable Key-Value secret engine
+body  = {
+    'type': 'kv',
+    'options': {
+      'version': '2'
+    }
+}
+sendRequest("POST", body, "/v1/sys/mounts/kv")
+
+
+def issueCert(common_name, file_name):
+    body = {
+        'common_name': common_name,
+        'ttl': '172799h'
+    }
+    data = sendRequest("POST", body, "/v1/pki_int/issue/" + root_domain_name)
+    dataMap = json.loads(data)
+    certificateString = dataMap['data']['certificate']
+    certificateString = certificateString + "\n"
+    #certFile = open("./self/" + file_name + ".crt", "w")
+    #certFile.write(certificateString.replace('\\n', '\n'))
+    #certFile.close()
+
+    keyString = dataMap['data']['private_key']
+    keyString = keyString + "\n"
+    #keyFile = open("./self/" + file_name + ".key", "w")
+    #keyFile.write(keyString.replace('\\n', '\n'))
+    #keyFile.close()
+
+    caString = dataMap['data']['issuing_ca']
+    caString = caString + "\n"
+    #caFile = open("./self/ca.crt", "w")
+    #caFile.write(caString.replace('\\n', '\n'))
+    #caFile.close()
+    return {
+      'ca': caString,
+      'cert': certificateString,
+      'key': keyString
+    }
+
+server_cert_data = issueCert('mqtt.engelbrink.dev', 'server')
+caFile = open("./ca.crt", "w")
+caFile.write(server_cert_data["ca"].replace('\\n', '\n'))
+caFile.close()
+os.system('cat ./root-ca.crt ./ca.crt > ./chain.crt')
+chain_cert_file = open('./chain.crt','r')
+chain_cert_string = chain_cert_file.read()
+chain_cert_string = chain_cert_string.replace('\n', '\\n')
+
+
+body  = {
+    'data': {
+      'chain_crt': chain_cert_string,
+      'server_crt': server_cert_data['cert'],
+      'server_key': server_cert_data['key']
+    }
+}
+sendRequest("POST", body, "/v1/kv/data/mqtt-server-cert")
