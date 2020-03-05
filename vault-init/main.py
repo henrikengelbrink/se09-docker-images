@@ -2,11 +2,16 @@ import http.client
 import json
 import os
 import time
+import base64
 
 vault_host = os.environ['VAULT_HOST']
 vault_port = os.environ['VAULT_PORT']
 root_domain = os.environ['CERT_ROOT_DOMAIN']
 root_domain_name = root_domain.replace(".", "-")
+
+k8s_host = os.environ['K8S_HOST']
+k8s_ca_cert = os.environ['K8S_CA_CERT']
+k8s_token = os.environ['K8S_TOKEN']
 
 time.sleep(30)
 print("Timer ended")
@@ -28,11 +33,10 @@ def sendRequest(method, payload, path):
 
     conn.request(method, path, body, headers)
     res = conn.getresponse()
-    #print("****************************")
-    #print(path)
-    #print(res.read)
+    print("****************************")
+    print(path)
     data = res.read()
-    #print(data.decode("utf-8"))
+    print(data.decode("utf-8"))
     return data.decode("utf-8")
 
 ################################################################
@@ -178,6 +182,8 @@ def issueCert(common_name, file_name):
       'key': keyString
     }
 
+################################################################
+# Issue server cert for MQTT broker
 server_cert_data = issueCert('mqtt.engelbrink.dev', 'server')
 caFile = open("./ca.crt", "w")
 caFile.write(server_cert_data["ca"].replace('\\n', '\n'))
@@ -196,3 +202,44 @@ body  = {
     }
 }
 sendRequest("POST", body, "/v1/kv/data/mqtt-server-cert")
+
+################################################################
+# Enable k8s secret engine
+body  = {
+    'type': 'kubernetes'
+}
+sendRequest("POST", body, "/v1/sys/auth/kubernetes")
+
+k8s_ca_cert_bytes = base64.b64decode(k8s_ca_cert)
+k8s_ca_cert_decoded = k8s_ca_cert_bytes.decode('ascii')
+k8s_ca_cert_decoded = k8s_ca_cert_decoded.replace("\n", "\\n")
+
+# body  = {
+#     'kubernetes_host': k8s_host,
+#     'kubernetes_ca_cert': k8s_ca_cert_decoded,
+#     'token_reviewer_jwt': k8s_token
+# }
+body  = {
+    'kubernetes_host': k8s_host,
+    'kubernetes_ca_cert': k8s_ca_cert_decoded
+}
+k8s_config_response = sendRequest("POST", body, "/v1/auth/kubernetes/config")
+print(k8s_config_response)
+
+################################################################
+# Create k8s Policy
+policy_data = "path \"kv/data/mqtt-server-cert\" {\n  capabilities = [\"read\"]\n}"
+body  = {
+  "policy": policy_data
+}
+sendRequest("PUT", body, "/v1/sys/policies/acl/mqtt-server-cert-secret-policy")
+
+################################################################
+# Create k8s role
+body  = {
+  "bound_service_account_names": "vault-auth",
+  "bound_service_account_namespaces": "vault",
+  "policies": ["mqtt-server-cert-secret-policy"],
+  "max_ttl": 1800000
+}
+sendRequest("POST", body, "/v1/auth/kubernetes/role/mqtt-server-cert-secret-role")
