@@ -13,6 +13,9 @@ k8s_host = os.environ['K8S_HOST']
 k8s_ca_cert = os.environ['K8S_CA_CERT']
 k8s_token = os.environ['K8S_TOKEN']
 
+k8s_host_env = os.environ['KUBERNETES_PORT_443_TCP_ADDR']
+cluster_token_env = os.environ['CLUSTER_TOKEN']
+
 time.sleep(30)
 print("Timer ended")
 vault_port_int = int(vault_port)
@@ -144,12 +147,9 @@ sendRequest("POST", body, "/v1/pki_int/roles/" + root_domain_name)
 ################################################################
 # Enable Key-Value secret engine
 body  = {
-    'type': 'kv',
-    'options': {
-      'version': '2'
-    }
+    'type': 'kv'
 }
-sendRequest("POST", body, "/v1/sys/mounts/kv")
+sendRequest("POST", body, "/v1/sys/mounts/secret")
 
 
 def issueCert(common_name, file_name):
@@ -191,17 +191,28 @@ caFile.close()
 os.system('cat ./root-ca.crt ./ca.crt > ./chain.crt')
 chain_cert_file = open('./chain.crt','r')
 chain_cert_string = chain_cert_file.read()
-chain_cert_string = chain_cert_string.replace('\n', '\\n')
+#chain_cert_string = chain_cert_string.replace('\n', '\\n')
 
 
 body  = {
     'data': {
-      'chain_crt': chain_cert_string,
-      'server_crt': server_cert_data['cert'],
+      'chain_crt': chain_cert_string
+    }
+}
+sendRequest("POST", body, "/v1/secret/mqtt-server-chain")
+
+body  = {
+    'data': {
+      'server_crt': server_cert_data['cert']
+    }
+}
+sendRequest("POST", body, "/v1/secret/mqtt-server-cert")
+body  = {
+    'data': {
       'server_key': server_cert_data['key']
     }
 }
-sendRequest("POST", body, "/v1/kv/data/mqtt-server-cert")
+sendRequest("POST", body, "/v1/secret/mqtt-server-key")
 
 ################################################################
 # Enable k8s secret engine
@@ -212,30 +223,49 @@ sendRequest("POST", body, "/v1/sys/auth/kubernetes")
 
 k8s_ca_cert_bytes = base64.b64decode(k8s_ca_cert)
 k8s_ca_cert_decoded = k8s_ca_cert_bytes.decode('ascii')
-k8s_ca_cert_decoded = k8s_ca_cert_decoded.replace("\n", "\\n")
+#k8s_ca_cert_decoded = k8s_ca_cert_decoded.replace("\n", "\\n")
 
-# body  = {
-#     'kubernetes_host': k8s_host,
-#     'kubernetes_ca_cert': k8s_ca_cert_decoded,
-#     'token_reviewer_jwt': k8s_token
-# }
+cluster_token_file = open('/var/run/secrets/kubernetes.io/serviceaccount/token','r')
+cluster_token = cluster_token_file.read()
+print(cluster_token)
+
+print("***********************")
+print("***********************")
+print("***********************")
+print(k8s_ca_cert_decoded)
+
+print("***********************")
+print("***********************")
+
+val_kubernetes_host = "https://" + k8s_host_env + ":443"
+val_kubernetes_ca_cert = k8s_ca_cert_decoded
+val_token_reviewer_jwt = cluster_token_env
+
+print("val_kubernetes_host")
+print(val_kubernetes_host)
+print("val_kubernetes_ca_cert")
+print(val_kubernetes_ca_cert)
+print("val_token_reviewer_jwt")
+print(val_token_reviewer_jwt)
+
 body  = {
-    'kubernetes_host': k8s_host,
-    'kubernetes_ca_cert': k8s_ca_cert_decoded
+    'kubernetes_host': val_kubernetes_host,
+    'kubernetes_ca_cert': val_kubernetes_ca_cert,
+    'token_reviewer_jwt': val_token_reviewer_jwt
 }
 k8s_config_response = sendRequest("POST", body, "/v1/auth/kubernetes/config")
 print(k8s_config_response)
 
 ################################################################
-# Create k8s Policy
-policy_data = "path \"kv/data/mqtt-server-cert\" {\n  capabilities = [\"read\"]\n}"
+# Create k8s Policy for mqtt
+policy_data = "path \"secret/mqtt-server-*\" {\n  capabilities = [\"read\"]\n}"
 body  = {
   "policy": policy_data
 }
 sendRequest("PUT", body, "/v1/sys/policies/acl/mqtt-server-cert-secret-policy")
 
 ################################################################
-# Create k8s role
+# Create k8s role for vault example
 body  = {
   "bound_service_account_names": "vault-auth",
   "bound_service_account_namespaces": "vault",
@@ -243,3 +273,31 @@ body  = {
   "max_ttl": 1800000
 }
 sendRequest("POST", body, "/v1/auth/kubernetes/role/mqtt-server-cert-secret-role")
+
+################################################################
+# Create k8s role for vernemq
+body  = {
+  "bound_service_account_names": "vernemq-cluster",
+  "bound_service_account_namespaces": "mqtt",
+  "policies": ["mqtt-server-cert-secret-policy"],
+  "max_ttl": 1800000
+}
+sendRequest("POST", body, "/v1/auth/kubernetes/role/vernemq-role")
+
+################################################################
+# Create k8s Policy for device-service
+policy_data = "path \"pki*\" {\n  capabilities = [\"create\", \"read\", \"update\"]\n}"
+body  = {
+  "policy": policy_data
+}
+sendRequest("PUT", body, "/v1/sys/policies/acl/device-service-policy")
+
+################################################################
+# Create k8s role for device-service
+body  = {
+  "bound_service_account_names": "device-service",
+  "bound_service_account_namespaces": "services",
+  "policies": ["device-service-policy", "mqtt-server-cert-secret-policy"],
+  "max_ttl": 1800000
+}
+sendRequest("POST", body, "/v1/auth/kubernetes/role/device-service-role")

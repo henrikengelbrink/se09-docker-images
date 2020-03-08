@@ -8,6 +8,6 @@ path "sys/mounts" {
 }
 
 # Work with pki secrets engine
-path "kv" {
+path "pki*" {
   capabilities = [ "create", "read", "update", "delete", "list", "sudo" ]
 }
