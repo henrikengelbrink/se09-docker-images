@@ -72,8 +72,7 @@ body  = {
 sendRequest("POST", body, "/v1/sys/mounts/pki")
 
 body  = {
-    'default_lease_ttl': '172800h',
-    'max_lease_ttl': '172800h'
+    'max_lease_ttl': '87600h'
 }
 sendRequest("POST", body, "/v1/sys/mounts/pki/tune")
 
@@ -81,7 +80,8 @@ sendRequest("POST", body, "/v1/sys/mounts/pki/tune")
 # Generate Root CA
 body = {
     'common_name': root_domain,
-    'ttl': '172800h'
+    'ttl': '87600h',
+    'key_bits': 4096
 }
 data = sendRequest("POST", body, "/v1/pki/root/generate/internal")
 dataMap = json.loads(data)
@@ -105,15 +105,15 @@ body  = {
 sendRequest("POST", body, "/v1/sys/mounts/pki_int")
 
 body  = {
-    'default_lease_ttl': '172800h',
-    'max_lease_ttl': '172800h'
+    'max_lease_ttl': '87600h'
 }
 sendRequest("POST", body, "/v1/sys/mounts/pki_int/tune")
 
 ################################################################
 # Generate Intermediate CA
 body = {
-    'common_name': root_domain + ' Intermediate Authority'
+    'common_name': root_domain + ' Intermediate Authority',
+    'key_bits': 4096
 }
 data = sendRequest("POST", body, "/v1/pki_int/intermediate/generate/internal")
 dataMap = json.loads(data)
@@ -124,7 +124,7 @@ csrString = dataMap['data']['csr']
 body = {
     'csr': csrString,
     'format': 'pem_bundle',
-    'ttl': '172800h'
+    'ttl': '87600h'
 }
 data = sendRequest("POST", body, "/v1/pki/root/sign-intermediate")
 dataMap = json.loads(data)
@@ -140,7 +140,7 @@ sendRequest("POST", body, "/v1/pki_int/intermediate/set-signed")
 body = {
     'allowed_domains': root_domain,
     'allow_subdomains': 'true',
-    'max_ttl': '172800h'
+    'max_ttl': '8760h'
 }
 sendRequest("POST", body, "/v1/pki_int/roles/" + root_domain_name)
 
@@ -155,7 +155,7 @@ sendRequest("POST", body, "/v1/sys/mounts/secret")
 def issueCert(common_name, file_name):
     body = {
         'common_name': common_name,
-        'ttl': '172799h'
+        'ttl': '8760h'
     }
     data = sendRequest("POST", body, "/v1/pki_int/issue/" + root_domain_name)
     dataMap = json.loads(data)

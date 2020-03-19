@@ -1,4 +1,4 @@
-VERSION=0.59
+VERSION=0.63
 docker build -t hengel2810/se09-vault-init:$VERSION .
 docker push hengel2810/se09-vault-init:$VERSION
 
