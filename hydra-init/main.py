@@ -11,17 +11,15 @@ url = hydra_host + ":" + hydra_port +  "/clients"
 
 client_id = secrets.token_hex(16)
 print(hydra_client_name + " client_id: " + client_id)
-client_secret = secrets.token_hex(32)
-print(hydra_client_name + " client_secret: " + client_secret)
 
 body  = {
     "client_name": hydra_client_name,
     "client_id": client_id,
-    "client_secret": client_secret,
+    "token_endpoint_auth_method": "none",
     "response_types": ["code", "id_token"],
     "grant_types": ["refresh_token","authorization_code"],
     "scope": "openid offline",
-    "redirect_uris": ["com.example-app:/oauth2/callback"]
+    "redirect_uris": ["com.se09-user-app:/oauth2/callback"]
 }
 payload = json.dumps(body)
 

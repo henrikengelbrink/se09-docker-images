@@ -1,4 +1,4 @@
-VERSION=1.2
+VERSION=1.4
 docker build -t hengel2810/se09-hydra-init:$VERSION .
 docker push hengel2810/se09-hydra-init:$VERSION
 
