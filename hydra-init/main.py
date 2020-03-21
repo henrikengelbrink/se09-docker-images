@@ -18,7 +18,7 @@ body  = {
     "token_endpoint_auth_method": "none",
     "response_types": ["code", "id_token"],
     "grant_types": ["refresh_token","authorization_code"],
-    "scope": "openid offline",
+    "scope": "openid offline offline_access",
     "redirect_uris": ["com.se09-user-app:/oauth2/callback"]
 }
 payload = json.dumps(body)
