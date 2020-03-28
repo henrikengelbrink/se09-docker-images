@@ -268,7 +268,7 @@ sendRequest("PUT", body, "/v1/sys/policies/acl/mqtt-server-cert-secret-policy")
 # Create k8s role for vault example
 body  = {
   "bound_service_account_names": "vault-auth",
-  "bound_service_account_namespaces": "vault",
+  "bound_service_account_namespaces": "default",
   "policies": ["mqtt-server-cert-secret-policy"],
   "max_ttl": 1800000
 }
@@ -278,7 +278,7 @@ sendRequest("POST", body, "/v1/auth/kubernetes/role/mqtt-server-cert-secret-role
 # Create k8s role for vernemq
 body  = {
   "bound_service_account_names": "vernemq-cluster",
-  "bound_service_account_namespaces": "mqtt",
+  "bound_service_account_namespaces": "default",
   "policies": ["mqtt-server-cert-secret-policy"],
   "max_ttl": 1800000
 }
@@ -296,8 +296,18 @@ sendRequest("PUT", body, "/v1/sys/policies/acl/cert-service-policy")
 # Create k8s role for cert-service
 body  = {
   "bound_service_account_names": "cert-service",
-  "bound_service_account_namespaces": "services",
-  "policies": ["cert-service-policy", "mqtt-server-cert-secret-policy"],
+  "bound_service_account_namespaces": "default",
+  "policies": ["cert-service-policy"],
   "max_ttl": 1800000
 }
 sendRequest("POST", body, "/v1/auth/kubernetes/role/cert-service-role")
+
+################################################################
+# Create k8s role for device-service
+body  = {
+  "bound_service_account_names": "device-service",
+  "bound_service_account_namespaces": "default",
+  "policies": ["mqtt-server-cert-secret-policy"],
+  "max_ttl": 1800000
+}
+sendRequest("POST", body, "/v1/auth/kubernetes/role/device-service-role")
