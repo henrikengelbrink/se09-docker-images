@@ -285,19 +285,19 @@ body  = {
 sendRequest("POST", body, "/v1/auth/kubernetes/role/vernemq-role")
 
 ################################################################
-# Create k8s Policy for device-service
+# Create k8s Policy for cert-service
 policy_data = "path \"pki*\" {\n  capabilities = [\"create\", \"read\", \"update\"]\n}"
 body  = {
   "policy": policy_data
 }
-sendRequest("PUT", body, "/v1/sys/policies/acl/device-service-policy")
+sendRequest("PUT", body, "/v1/sys/policies/acl/cert-service-policy")
 
 ################################################################
-# Create k8s role for device-service
+# Create k8s role for cert-service
 body  = {
-  "bound_service_account_names": "device-service",
+  "bound_service_account_names": "cert-service",
   "bound_service_account_namespaces": "services",
-  "policies": ["device-service-policy", "mqtt-server-cert-secret-policy"],
+  "policies": ["cert-service-policy", "mqtt-server-cert-secret-policy"],
   "max_ttl": 1800000
 }
-sendRequest("POST", body, "/v1/auth/kubernetes/role/device-service-role")
+sendRequest("POST", body, "/v1/auth/kubernetes/role/cert-service-role")
